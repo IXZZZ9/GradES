@@ -14,7 +14,6 @@ License: MIT License
 
 import json
 import logging
-import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -145,7 +144,6 @@ class GradEarlyStoppingCallback(TrainerCallback):
         self.cuda_available = False
         
         # Global statistics
-        self.start_time: Optional[float] = None
         self.total_steps: int = 0
         self.max_steps: int = 0
         self.all_components_frozen_at_step: Optional[int] = None
@@ -177,8 +175,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
                                   self.config.use_cuda_acceleration else "cpu")
         self.cuda_available = torch.cuda.is_available() and self.config.use_cuda_acceleration
         
-        # Initialize timing
-        self.start_time = time.time()
+        # Initialize total training steps
         self.max_steps = state.max_steps
         
         # Check wandb availability
@@ -332,11 +329,8 @@ class GradEarlyStoppingCallback(TrainerCallback):
         
         if not self.initialized:
             return
-        
-        total_time = time.time() - self.start_time
-        
+
         logger.info(
-            f"GradEarlyStoppingCallback: Training completed in {total_time:.2f} seconds. "
             f"Final state: {len(self.frozen_components)}/{len(self.component_stats)} components frozen"
         )
         
@@ -672,7 +666,6 @@ class GradEarlyStoppingCallback(TrainerCallback):
                 "target_components": self.config.target_components
             },
             "summary": {
-                "total_time_seconds": time.time() - self.start_time if self.start_time else 0,
                 "total_steps": self.total_steps,
                 "max_steps": self.max_steps,
                 "all_components_frozen_at_step": self.all_components_frozen_at_step,
