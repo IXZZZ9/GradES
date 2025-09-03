@@ -306,15 +306,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
         
         if not self.initialized:
             return
-        
-        # Add freezing metrics to evaluation metrics
-        if self.component_stats:
-            frozen_ratio = len(self.frozen_components) / len(self.component_stats)
-            metrics['frozen_components'] = len(self.frozen_components)
-            metrics['frozen_ratio'] = frozen_ratio
-            metrics['total_components'] = len(self.component_stats)
-            
-    
+
     def on_train_end(self, args: TrainingArguments, state: TrainerState,
                      control: TrainerControl, model=None, **kwargs):
         """Save final statistics and clean up."""
@@ -332,7 +324,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
         
         # Clean up memory
         self._cleanup_memory()
-    
+
     def state(self) -> dict:
         """Export callback state for checkpointing."""
         return {
