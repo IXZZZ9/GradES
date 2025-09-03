@@ -21,7 +21,6 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 
 import torch
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
-from transformers.trainer_utils import IntervalStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -158,13 +157,6 @@ class GradEarlyStoppingCallback(TrainerCallback):
     def on_train_begin(self, args: TrainingArguments, state: TrainerState, 
                        control: TrainerControl, model=None, **kwargs):
         """Initialize the callback and detect training mode."""
-        
-        # Validate configuration
-        if args.eval_strategy == IntervalStrategy.NO and self.config.save_freezing_history:
-            logger.warning(
-                "GradEarlyStoppingCallback with save_freezing_history=True works best with "
-                "evaluation enabled. Consider setting eval_strategy to 'steps' or 'epoch'."
-            )
         
         # Set output directory
         if self.config.output_dir is None:
