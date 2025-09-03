@@ -1,11 +1,14 @@
 """
 Gradient-based Early Stopping Callback for Transformers
 
-A TrainerCallback that dynamically freezes model parameters during training
-based on weight change convergence, supporting both LoRA and full parameter fine-tuning.
+A TrainerCallback implementing gradient-based early stopping that monitors gradient magnitudes 
+during backpropagation and freezes individual transformer components (attention/FFN matrices) when 
+their gradients fall below convergence threshold τ, eliminating costly validation passes while 
+allowing slow-converging parameters to continue learning.
 
-Authors: [Your Name]
-Paper: [Your Paper Title and Link]
+Authors: Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Mehdi Hosseinzadeh, Reza Rawassizadeh
+Paper: GradES: Significantly Faster Training in Transformers with Gradient-Based Early Stopping
+Link: https://arxiv.org/abs/2509.01842
 License: MIT License
 """
 
