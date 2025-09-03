@@ -69,7 +69,7 @@ class GradEarlyStoppingConfig:
 
 
 @dataclass
-class componentStats:
+class ComponentStats:
     """Statistics for tracking component weight changes."""
     
     name: str
@@ -131,7 +131,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
         self.config = config or GradEarlyStoppingConfig()
         
         # Core tracking structures
-        self.component_stats: Dict[str, componentStats] = {}
+        self.component_stats: Dict[str, ComponentStats] = {}
         self.frozen_components: Set[str] = set()
         
         # Training mode detection
@@ -410,7 +410,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
                         
                         if should_track:
                             key = f"layer_{i:02d}_attn_{component_name}"
-                            self.component_stats[key] = componentStats(
+                            self.component_stats[key] = ComponentStats(
                                 name=key,
                                 component_type=self.mode,
                                 param_count=param_count
@@ -439,7 +439,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
                         
                         if should_track:
                             key = f"layer_{i:02d}_mlp_{component_name}"
-                            self.component_stats[key] = componentStats(
+                            self.component_stats[key] = ComponentStats(
                                 name=key,
                                 component_type=self.mode,
                                 param_count=param_count
@@ -458,14 +458,14 @@ class GradEarlyStoppingCallback(TrainerCallback):
                     return a.weight, b.weight
         return None, None
     
-    def _calculate_component_change(self, component, stats: componentStats) -> float:
+    def _calculate_component_change(self, component, stats: ComponentStats) -> float:
         """Calculate weight change for a component."""
         if self.mode == 'lora':
             return self._calculate_lora_change(component, stats)
         else:
             return self._calculate_full_param_change(component, stats)
     
-    def _calculate_lora_change(self, component, stats: componentStats) -> float:
+    def _calculate_lora_change(self, component, stats: ComponentStats) -> float:
         """Calculate change for LoRA components."""
         lora_a, lora_b = self._get_lora_matrices(component)
         if lora_a is None or lora_b is None:
@@ -505,7 +505,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
             logger.debug(f"Error calculating LoRA change: {e}")
             return 0.0
     
-    def _calculate_full_param_change(self, component, stats: componentStats) -> float:
+    def _calculate_full_param_change(self, component, stats: ComponentStats) -> float:
         """Calculate change for full parameter components."""
         try:
             with torch.no_grad():
