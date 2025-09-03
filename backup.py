@@ -1,5 +1,5 @@
 """
-Dynamic Module Freezing Callback for Transformers
+Gradient-based Early Stopping Callback for Transformers
 
 A TrainerCallback that dynamically freezes model parameters during training
 based on weight change convergence, supporting both LoRA and full parameter fine-tuning.
@@ -25,21 +25,21 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class DynamicFreezingConfig:
+class GradEarlyStoppingConfig:
     """
-    Configuration for the DynamicFreezingCallback.
+    Configuration for the GradEarlyStoppingCallback.
     
     Args:
         tau (`float`, *optional*, defaults to 1e-4):
-            Weight change threshold below which a module is considered converged and frozen.
+            Weight change threshold below which a component is considered converged and frozen.
         alpha (`float`, *optional*, defaults to 0.3):
             Minimum fraction of total training steps before freezing is allowed.
         max_frozen_ratio (`float`, *optional*, defaults to 1.0):
-            Maximum fraction of modules that can be frozen before early stopping.
+            Maximum fraction of components that can be frozen before early stopping.
         compute_interval (`int`, *optional*, defaults to 1):
             Number of steps between weight change computations.
-        target_modules (`List[str]`, *optional*):
-            List of module names to monitor. Defaults to common transformer modules.
+        target_components (`List[str]`, *optional*):
+            List of component names to monitor. Defaults to common transformer components.
         auto_detect_mode (`bool`, *optional*, defaults to True):
             Whether to automatically detect LoRA vs full parameter fine-tuning.
         use_cuda_acceleration (`bool`, *optional*, defaults to True):
@@ -56,7 +56,7 @@ class DynamicFreezingConfig:
     alpha: float = 0.3
     max_frozen_ratio: float = 1.0
     compute_interval: int = 1
-    target_modules: List[str] = field(default_factory=lambda: [
+    target_components: List[str] = field(default_factory=lambda: [
         "q_proj", "k_proj", "v_proj", "o_proj",
         "gate_proj", "up_proj", "down_proj"
     ])
@@ -68,11 +68,11 @@ class DynamicFreezingConfig:
 
 
 @dataclass
-class ModuleStats:
-    """Statistics for tracking module weight changes."""
+class componentStats:
+    """Statistics for tracking component weight changes."""
     
     name: str
-    module_type: str  # 'lora' or 'full'
+    component_type: str  # 'lora' or 'full'
     frozen: bool = False
     frozen_at_step: Optional[int] = None
     change_history: deque = field(default_factory=lambda: deque(maxlen=1000))
@@ -86,17 +86,17 @@ class ModuleStats:
         self.total_change_accumulated += change
 
 
-class DynamicFreezingCallback(TrainerCallback):
+class GradEarlyStoppingCallback(TrainerCallback):
     """
     A [`TrainerCallback`] that dynamically freezes model parameters during training
     based on weight change convergence.
     
-    This callback monitors the weight changes of specified modules during training and
+    This callback monitors the weight changes of specified components during training and
     freezes them when their changes fall below a threshold, indicating convergence.
     It supports both LoRA adapter fine-tuning and full parameter fine-tuning.
     
     Args:
-        config (`DynamicFreezingConfig`, *optional*):
+        config (`GradEarlyStoppingConfig`, *optional*):
             Configuration for the dynamic freezing behavior. If None, uses default config.
     
     Example:
@@ -104,12 +104,12 @@ class DynamicFreezingCallback(TrainerCallback):
         from transformers import Trainer
         
         # Create callback with custom configuration
-        freeze_config = DynamicFreezingConfig(
+        freeze_config = GradEarlyStoppingConfig(
             tau=1e-5,
             alpha=0.2,
             compute_interval=50
         )
-        freeze_callback = DynamicFreezingCallback(config=freeze_config)
+        freeze_callback = GradEarlyStoppingCallback(config=freeze_config)
         
         # Add to trainer
         trainer = Trainer(
@@ -126,12 +126,12 @@ class DynamicFreezingCallback(TrainerCallback):
         these features.
     """
     
-    def __init__(self, config: Optional[DynamicFreezingConfig] = None):
-        self.config = config or DynamicFreezingConfig()
+    def __init__(self, config: Optional[GradEarlyStoppingConfig] = None):
+        self.config = config or GradEarlyStoppingConfig()
         
         # Core tracking structures
-        self.module_stats: Dict[str, ModuleStats] = {}
-        self.frozen_modules: Set[str] = set()
+        self.component_stats: Dict[str, componentStats] = {}
+        self.frozen_components: Set[str] = set()
         
         # Training mode detection
         self.mode: Optional[str] = None  # 'lora' or 'full'
@@ -145,7 +145,7 @@ class DynamicFreezingCallback(TrainerCallback):
         self.start_time: Optional[float] = None
         self.total_steps: int = 0
         self.max_steps: int = 0
-        self.all_modules_frozen_at_step: Optional[int] = None
+        self.all_components_frozen_at_step: Optional[int] = None
         self.frozen_events: List[Dict] = []
         
         # Wandb logging
@@ -161,7 +161,7 @@ class DynamicFreezingCallback(TrainerCallback):
         # Validate configuration
         if args.eval_strategy == IntervalStrategy.NO and self.config.save_freezing_history:
             logger.warning(
-                "DynamicFreezingCallback with save_freezing_history=True works best with "
+                "GradEarlyStoppingCallback with save_freezing_history=True works best with "
                 "evaluation enabled. Consider setting eval_strategy to 'steps' or 'epoch'."
             )
         
@@ -191,18 +191,18 @@ class DynamicFreezingCallback(TrainerCallback):
         # Detect training mode
         if self.config.auto_detect_mode:
             self.mode = self._detect_training_mode(model)
-            logger.info(f"DynamicFreezingCallback detected {self.mode.upper()} parameter fine-tuning")
+            logger.info(f"GradEarlyStoppingCallback detected {self.mode.upper()} parameter fine-tuning")
         else:
             self.mode = 'full'  # Default to full if not auto-detecting
-            logger.info("DynamicFreezingCallback using full parameter mode (auto_detect disabled)")
+            logger.info("GradEarlyStoppingCallback using full parameter mode (auto_detect disabled)")
         
-        # Initialize module tracking
-        initialized_count = self._initialize_module_tracking(model)
+        # Initialize component tracking
+        initialized_count = self._initialize_component_tracking(model)
         
         if initialized_count == 0:
             logger.warning(
-                "DynamicFreezingCallback found no modules to track. "
-                "Check that your model has trainable parameters in the target modules."
+                "GradEarlyStoppingCallback found no components to track. "
+                "Check that your model has trainable parameters in the target components."
             )
             self.initialized = False
             return
@@ -210,10 +210,10 @@ class DynamicFreezingCallback(TrainerCallback):
         self.initialized = True
         
         # Log initialization summary
-        total_params = sum(stats.param_count for stats in self.module_stats.values())
+        total_params = sum(stats.param_count for stats in self.component_stats.values())
         logger.info(
-            f"DynamicFreezingCallback initialized: "
-            f"tracking {initialized_count} modules with {total_params:,} parameters"
+            f"GradEarlyStoppingCallback initialized: "
+            f"tracking {initialized_count} components with {total_params:,} parameters"
         )
         
         if self.cuda_available:
@@ -221,7 +221,7 @@ class DynamicFreezingCallback(TrainerCallback):
     
     def on_step_end(self, args: TrainingArguments, state: TrainerState,
                     control: TrainerControl, model=None, **kwargs):
-        """Monitor modules and freeze converged ones."""
+        """Monitor components and freeze converged ones."""
         
         if not self.initialized:
             return control
@@ -235,74 +235,74 @@ class DynamicFreezingCallback(TrainerCallback):
         # Only compute changes at specified intervals
         if current_step > 0 and current_step % self.config.compute_interval == 0:
             
-            # Get active (non-frozen) modules
-            active_modules = [k for k, v in self.module_stats.items() if not v.frozen]
+            # Get active (non-frozen) components
+            active_components = [k for k, v in self.component_stats.items() if not v.frozen]
             
-            if not active_modules:
-                # All modules are frozen
+            if not active_components:
+                # All components are frozen
                 if self._should_stop_training():
                     control.should_training_stop = True
                 return control
             
-            # Process each active module
-            modules_to_freeze = []
+            # Process each active component
+            components_to_freeze = []
             
-            for module_key in active_modules:
-                module = self._get_module_by_key(model, module_key)
-                if module is None:
+            for component_key in active_components:
+                component = self._get_component_by_key(model, component_key)
+                if component is None:
                     continue
                 
                 try:
                     # Calculate weight change
-                    stats = self.module_stats[module_key]
-                    change = self._calculate_module_change(module, stats)
+                    stats = self.component_stats[component_key]
+                    change = self._calculate_component_change(component, stats)
                     stats.add_change(change, current_step)
                     
-                    # Check if module should be frozen
+                    # Check if component should be frozen
                     if (current_step >= min_steps_before_freeze and 
                         change < self.config.tau):
-                        modules_to_freeze.append(module_key)
+                        components_to_freeze.append(component_key)
                 
                 except torch.cuda.OutOfMemoryError:
-                    logger.warning(f"OOM while processing {module_key}, clearing cache")
+                    logger.warning(f"OOM while processing {component_key}, clearing cache")
                     if self.cuda_available:
                         torch.cuda.empty_cache()
                     continue
                 except Exception as e:
-                    logger.error(f"Error processing module {module_key}: {e}")
+                    logger.error(f"Error processing component {component_key}: {e}")
                     continue
             
-            # Freeze converged modules
-            if modules_to_freeze:
-                for module_key in modules_to_freeze:
-                    self._freeze_module(model, module_key, current_step)
+            # Freeze converged components
+            if components_to_freeze:
+                for component_key in components_to_freeze:
+                    self._freeze_component(model, component_key, current_step)
                 
                 # Clear CUDA cache after freezing
                 if self.cuda_available:
                     torch.cuda.empty_cache()
                 
                 logger.info(
-                    f"Step {current_step}: Frozen {len(modules_to_freeze)} modules. "
-                    f"Total frozen: {len(self.frozen_modules)}/{len(self.module_stats)}"
+                    f"Step {current_step}: Frozen {len(components_to_freeze)} components. "
+                    f"Total frozen: {len(self.frozen_components)}/{len(self.component_stats)}"
                 )
             
             # Log to wandb if available
             if self.wandb_available:
                 self._log_to_wandb(current_step)
             
-            # Check if all modules are now frozen
-            if self.all_modules_frozen_at_step is None and len(self.frozen_modules) == len(self.module_stats):
-                self.all_modules_frozen_at_step = current_step
-                logger.info(f"All modules frozen at step {current_step}")
+            # Check if all components are now frozen
+            if self.all_components_frozen_at_step is None and len(self.frozen_components) == len(self.component_stats):
+                self.all_components_frozen_at_step = current_step
+                logger.info(f"All components frozen at step {current_step}")
                 if self._should_stop_training():
                     control.should_training_stop = True
         
         # Check early stopping based on frozen ratio
         if self._should_stop_training():
-            frozen_ratio = len(self.frozen_modules) / len(self.module_stats) if self.module_stats else 0
+            frozen_ratio = len(self.frozen_components) / len(self.component_stats) if self.component_stats else 0
             logger.info(
                 f"Early stopping triggered at step {current_step}: "
-                f"{frozen_ratio:.1%} modules frozen (threshold: {self.config.max_frozen_ratio:.1%})"
+                f"{frozen_ratio:.1%} components frozen (threshold: {self.config.max_frozen_ratio:.1%})"
             )
             control.should_training_stop = True
         
@@ -316,11 +316,11 @@ class DynamicFreezingCallback(TrainerCallback):
             return
         
         # Add freezing metrics to evaluation metrics
-        if self.module_stats:
-            frozen_ratio = len(self.frozen_modules) / len(self.module_stats)
-            metrics['frozen_modules'] = len(self.frozen_modules)
+        if self.component_stats:
+            frozen_ratio = len(self.frozen_components) / len(self.component_stats)
+            metrics['frozen_components'] = len(self.frozen_components)
             metrics['frozen_ratio'] = frozen_ratio
-            metrics['total_modules'] = len(self.module_stats)
+            metrics['total_components'] = len(self.component_stats)
             
     
     def on_train_end(self, args: TrainingArguments, state: TrainerState,
@@ -333,8 +333,8 @@ class DynamicFreezingCallback(TrainerCallback):
         total_time = time.time() - self.start_time
         
         logger.info(
-            f"DynamicFreezingCallback: Training completed in {total_time:.2f} seconds. "
-            f"Final state: {len(self.frozen_modules)}/{len(self.module_stats)} modules frozen"
+            f"GradEarlyStoppingCallback: Training completed in {total_time:.2f} seconds. "
+            f"Final state: {len(self.frozen_components)}/{len(self.component_stats)} components frozen"
         )
         
         # Save statistics if requested
@@ -352,13 +352,13 @@ class DynamicFreezingCallback(TrainerCallback):
                 "alpha": self.config.alpha,
                 "max_frozen_ratio": self.config.max_frozen_ratio,
                 "compute_interval": self.config.compute_interval,
-                "target_modules": self.config.target_modules,
+                "target_components": self.config.target_components,
                 "auto_detect_mode": self.config.auto_detect_mode,
             },
             "attributes": {
                 "mode": self.mode,
-                "frozen_modules": list(self.frozen_modules),
-                "all_modules_frozen_at_step": self.all_modules_frozen_at_step,
+                "frozen_components": list(self.frozen_components),
+                "all_components_frozen_at_step": self.all_components_frozen_at_step,
                 "frozen_events": self.frozen_events,
                 "total_steps": self.total_steps,
                 "initialized": self.initialized,
@@ -376,21 +376,21 @@ class DynamicFreezingCallback(TrainerCallback):
         # Check first few layers for LoRA adapters
         for layer in layers[:3]:
             if hasattr(layer, 'self_attn'):
-                for module_name in self.config.target_modules[:4]:
-                    if hasattr(layer.self_attn, module_name):
-                        module = getattr(layer.self_attn, module_name)
-                        if self._has_lora(module):
+                for component_name in self.config.target_components[:4]:
+                    if hasattr(layer.self_attn, component_name):
+                        component = getattr(layer.self_attn, component_name)
+                        if self._has_lora(component):
                             return 'lora'
         return 'full'
     
-    def _has_lora(self, module) -> bool:
-        """Check if a module has LoRA adapters."""
-        return (hasattr(module, 'lora_A') and 
-                hasattr(module, 'lora_B') and 
-                len(getattr(module, 'lora_A', {})) > 0)
+    def _has_lora(self, component) -> bool:
+        """Check if a component has LoRA adapters."""
+        return (hasattr(component, 'lora_A') and 
+                hasattr(component, 'lora_B') and 
+                len(getattr(component, 'lora_A', {})) > 0)
     
-    def _initialize_module_tracking(self, model) -> int:
-        """Initialize tracking for all target modules."""
+    def _initialize_component_tracking(self, model) -> int:
+        """Initialize tracking for all target components."""
         layers = self._get_model_layers(model)
         if not layers:
             return 0
@@ -398,87 +398,87 @@ class DynamicFreezingCallback(TrainerCallback):
         initialized_count = 0
         
         for i, layer in enumerate(layers):
-            # Check attention modules
+            # Check attention components
             if hasattr(layer, 'self_attn'):
-                for module_name in self.config.target_modules[:4]:
-                    if hasattr(layer.self_attn, module_name):
-                        module = getattr(layer.self_attn, module_name)
+                for component_name in self.config.target_components[:4]:
+                    if hasattr(layer.self_attn, component_name):
+                        component = getattr(layer.self_attn, component_name)
                         
-                        # Check if module should be tracked
+                        # Check if component should be tracked
                         should_track = False
                         param_count = 0
                         
                         if self.mode == 'lora':
-                            should_track = self._has_lora(module)
+                            should_track = self._has_lora(component)
                             if should_track:
-                                lora_a, lora_b = self._get_lora_matrices(module)
+                                lora_a, lora_b = self._get_lora_matrices(component)
                                 if lora_a is not None and lora_b is not None:
                                     param_count = lora_a.numel() + lora_b.numel()
                         else:
-                            should_track = any(p.requires_grad for p in module.parameters())
+                            should_track = any(p.requires_grad for p in component.parameters())
                             if should_track:
-                                param_count = sum(p.numel() for p in module.parameters() if p.requires_grad)
+                                param_count = sum(p.numel() for p in component.parameters() if p.requires_grad)
                         
                         if should_track:
-                            key = f"layer_{i:02d}_attn_{module_name}"
-                            self.module_stats[key] = ModuleStats(
+                            key = f"layer_{i:02d}_attn_{component_name}"
+                            self.component_stats[key] = componentStats(
                                 name=key,
-                                module_type=self.mode,
+                                component_type=self.mode,
                                 param_count=param_count
                             )
                             initialized_count += 1
             
-            # Check MLP modules
+            # Check MLP components
             if hasattr(layer, 'mlp'):
-                for module_name in self.config.target_modules[4:]:
-                    if hasattr(layer.mlp, module_name):
-                        module = getattr(layer.mlp, module_name)
+                for component_name in self.config.target_components[4:]:
+                    if hasattr(layer.mlp, component_name):
+                        component = getattr(layer.mlp, component_name)
                         
                         should_track = False
                         param_count = 0
                         
                         if self.mode == 'lora':
-                            should_track = self._has_lora(module)
+                            should_track = self._has_lora(component)
                             if should_track:
-                                lora_a, lora_b = self._get_lora_matrices(module)
+                                lora_a, lora_b = self._get_lora_matrices(component)
                                 if lora_a is not None and lora_b is not None:
                                     param_count = lora_a.numel() + lora_b.numel()
                         else:
-                            should_track = any(p.requires_grad for p in module.parameters())
+                            should_track = any(p.requires_grad for p in component.parameters())
                             if should_track:
-                                param_count = sum(p.numel() for p in module.parameters() if p.requires_grad)
+                                param_count = sum(p.numel() for p in component.parameters() if p.requires_grad)
                         
                         if should_track:
-                            key = f"layer_{i:02d}_mlp_{module_name}"
-                            self.module_stats[key] = ModuleStats(
+                            key = f"layer_{i:02d}_mlp_{component_name}"
+                            self.component_stats[key] = componentStats(
                                 name=key,
-                                module_type=self.mode,
+                                component_type=self.mode,
                                 param_count=param_count
                             )
                             initialized_count += 1
         
         return initialized_count
     
-    def _get_lora_matrices(self, module) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
-        """Get LoRA A and B matrices from a module."""
-        if hasattr(module, 'lora_A') and hasattr(module, 'lora_B'):
-            if 'default' in module.lora_A and 'default' in module.lora_B:
-                a = module.lora_A['default']
-                b = module.lora_B['default']
+    def _get_lora_matrices(self, component) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """Get LoRA A and B matrices from a component."""
+        if hasattr(component, 'lora_A') and hasattr(component, 'lora_B'):
+            if 'default' in component.lora_A and 'default' in component.lora_B:
+                a = component.lora_A['default']
+                b = component.lora_B['default']
                 if a is not None and b is not None:
                     return a.weight, b.weight
         return None, None
     
-    def _calculate_module_change(self, module, stats: ModuleStats) -> float:
-        """Calculate weight change for a module."""
+    def _calculate_component_change(self, component, stats: componentStats) -> float:
+        """Calculate weight change for a component."""
         if self.mode == 'lora':
-            return self._calculate_lora_change(module, stats)
+            return self._calculate_lora_change(component, stats)
         else:
-            return self._calculate_full_param_change(module, stats)
+            return self._calculate_full_param_change(component, stats)
     
-    def _calculate_lora_change(self, module, stats: ModuleStats) -> float:
-        """Calculate change for LoRA modules."""
-        lora_a, lora_b = self._get_lora_matrices(module)
+    def _calculate_lora_change(self, component, stats: componentStats) -> float:
+        """Calculate change for LoRA components."""
+        lora_a, lora_b = self._get_lora_matrices(component)
         if lora_a is None or lora_b is None:
             return 0.0
         
@@ -516,15 +516,15 @@ class DynamicFreezingCallback(TrainerCallback):
             logger.debug(f"Error calculating LoRA change: {e}")
             return 0.0
     
-    def _calculate_full_param_change(self, module, stats: ModuleStats) -> float:
-        """Calculate change for full parameter modules."""
+    def _calculate_full_param_change(self, component, stats: componentStats) -> float:
+        """Calculate change for full parameter components."""
         try:
             with torch.no_grad():
                 # Get current weights
                 current_weights = []
                 device = None
                 
-                for param in module.parameters():
+                for param in component.parameters():
                     if param.requires_grad:
                         current_weights.append(param.data.flatten())
                         if device is None:
@@ -558,13 +558,13 @@ class DynamicFreezingCallback(TrainerCallback):
             logger.debug(f"Error calculating full param change: {e}")
             return 0.0
     
-    def _freeze_module(self, model, module_key: str, step: int):
-        """Freeze a module's parameters."""
-        if module_key in self.frozen_modules:
+    def _freeze_component(self, model, component_key: str, step: int):
+        """Freeze a component's parameters."""
+        if component_key in self.frozen_components:
             return
         
-        module = self._get_module_by_key(model, module_key)
-        if module is None:
+        component = self._get_component_by_key(model, component_key)
+        if component is None:
             return
         
         frozen_count = 0
@@ -572,42 +572,42 @@ class DynamicFreezingCallback(TrainerCallback):
         if self.mode == 'lora':
             # Freeze LoRA parameters
             for param_name in ['lora_A', 'lora_B']:
-                if hasattr(module, param_name):
-                    for adapter_name in getattr(module, param_name):
-                        param = getattr(module, param_name)[adapter_name].weight
+                if hasattr(component, param_name):
+                    for adapter_name in getattr(component, param_name):
+                        param = getattr(component, param_name)[adapter_name].weight
                         if param.requires_grad:
                             param.requires_grad = False
                             frozen_count += 1
         else:
             # Freeze all parameters
-            for param in module.parameters():
+            for param in component.parameters():
                 if param.requires_grad:
                     param.requires_grad = False
                     frozen_count += 1
         
         # Clear weight cache to save memory
-        if module_key in self.module_stats:
-            self.module_stats[module_key].weight_cache = None
+        if component_key in self.component_stats:
+            self.component_stats[component_key].weight_cache = None
         
         # Update statistics
-        stats = self.module_stats[module_key]
+        stats = self.component_stats[component_key]
         stats.frozen = True
         stats.frozen_at_step = step
-        self.frozen_modules.add(module_key)
+        self.frozen_components.add(component_key)
         
         # Record event
         self.frozen_events.append({
             "step": step,
-            "module": module_key,
+            "component": component_key,
             "mode": self.mode,
             "param_count": stats.param_count
         })
     
     def _should_stop_training(self) -> bool:
         """Check if training should stop based on frozen ratio."""
-        if not self.module_stats:
+        if not self.component_stats:
             return False
-        frozen_ratio = len(self.frozen_modules) / len(self.module_stats)
+        frozen_ratio = len(self.frozen_components) / len(self.component_stats)
         return frozen_ratio >= self.config.max_frozen_ratio
     
     def _get_model_layers(self, model):
@@ -632,22 +632,22 @@ class DynamicFreezingCallback(TrainerCallback):
         
         return self.model_layers_cache
     
-    def _get_module_by_key(self, model, module_key: str):
-        """Get a module by its tracking key."""
+    def _get_component_by_key(self, model, component_key: str):
+        """Get a component by its tracking key."""
         try:
-            parts = module_key.split('_')
+            parts = component_key.split('_')
             layer_idx = int(parts[1])
-            module_type = parts[2]  # 'attn' or 'mlp'
-            module_name = '_'.join(parts[3:])
+            component_type = parts[2]  # 'attn' or 'mlp'
+            component_name = '_'.join(parts[3:])
             
             layers = self._get_model_layers(model)
             if layers and layer_idx < len(layers):
                 layer = layers[layer_idx]
-                parent = getattr(layer, 'self_attn' if module_type == 'attn' else 'mlp', None)
+                parent = getattr(layer, 'self_attn' if component_type == 'attn' else 'mlp', None)
                 if parent:
-                    return getattr(parent, module_name, None)
+                    return getattr(parent, component_name, None)
         except Exception as e:
-            logger.debug(f"Error getting module {module_key}: {e}")
+            logger.debug(f"Error getting component {component_key}: {e}")
         return None
     
     def _save_freezing_history(self):
@@ -666,26 +666,26 @@ class DynamicFreezingCallback(TrainerCallback):
                 "alpha": self.config.alpha,
                 "max_frozen_ratio": self.config.max_frozen_ratio,
                 "compute_interval": self.config.compute_interval,
-                "target_modules": self.config.target_modules
+                "target_components": self.config.target_components
             },
             "summary": {
                 "total_time_seconds": time.time() - self.start_time if self.start_time else 0,
                 "total_steps": self.total_steps,
                 "max_steps": self.max_steps,
-                "all_modules_frozen_at_step": self.all_modules_frozen_at_step,
-                "final_frozen_count": len(self.frozen_modules),
-                "total_modules": len(self.module_stats)
+                "all_components_frozen_at_step": self.all_components_frozen_at_step,
+                "final_frozen_count": len(self.frozen_components),
+                "total_components": len(self.component_stats)
             },
             "frozen_events": self.frozen_events,
-            "module_details": {
+            "component_details": {
                 name: {
-                    "module_type": stats.module_type,
+                    "component_type": stats.component_type,
                     "frozen": stats.frozen,
                     "frozen_at_step": stats.frozen_at_step,
                     "param_count": stats.param_count,
                     "total_change": stats.total_change_accumulated,
                 }
-                for name, stats in self.module_stats.items()
+                for name, stats in self.component_stats.items()
             }
         }
         
@@ -706,12 +706,12 @@ class DynamicFreezingCallback(TrainerCallback):
             # Group by component type across all layers
             component_stats = {}
             
-            for module_key, stats in self.module_stats.items():
+            for component_key, stats in self.component_stats.items():
                 if not stats.change_history:
                     continue
                     
                 # Extract component type (e.g., "attn_q_proj", "mlp_gate_proj")
-                parts = module_key.split('_')
+                parts = component_key.split('_')
                 component_type = f"{parts[2]}_{parts[3]}"
                 
                 # Get the latest change value
@@ -728,11 +728,11 @@ class DynamicFreezingCallback(TrainerCallback):
                 metrics[f"GradES/components/{component_type}"] = avg_change
             
             # Add global metrics
-            frozen_ratio = len(self.frozen_modules) / len(self.module_stats) if self.module_stats else 0
+            frozen_ratio = len(self.frozen_components) / len(self.component_stats) if self.component_stats else 0
             metrics.update({
-                "GradES/global/frozen_modules": len(self.frozen_modules),
+                "GradES/global/frozen_components": len(self.frozen_components),
                 "GradES/global/frozen_ratio": frozen_ratio,
-                "GradES/global/total_modules": len(self.module_stats)
+                "GradES/global/total_components": len(self.component_stats)
             })
             
             # Log all metrics at once
@@ -745,7 +745,7 @@ class DynamicFreezingCallback(TrainerCallback):
     def _cleanup_memory(self):
         """Clean up memory after training."""
         # Clear weight caches
-        for stats in self.module_stats.values():
+        for stats in self.component_stats.values():
             stats.weight_cache = None
         
         # Clear CUDA cache
