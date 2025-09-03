@@ -22,8 +22,16 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import torch
 from transformers import TrainerCallback, TrainerControl, TrainerState, TrainingArguments
 
+__version__ = "1.0.0"
+__all__ = ["GradEarlyStoppingCallback", "GradEarlyStoppingConfig", "ComponentStats"]
+
 logger = logging.getLogger(__name__)
 
+# Define constants
+DEFAULT_HISTORY_MAXLEN = 1000  # Maximum change history entries per component
+LORA_DETECTION_LAYERS = 3      # Number of layers to check for LoRA detection
+ATTENTION_COMPONENTS = ["q_proj", "k_proj", "v_proj", "o_proj"]
+MLP_COMPONENTS = ["gate_proj", "up_proj", "down_proj"]
 
 @dataclass
 class GradEarlyStoppingConfig:
@@ -57,10 +65,9 @@ class GradEarlyStoppingConfig:
     alpha: float = 0.3
     max_frozen_ratio: float = 1.0
     compute_interval: int = 1
-    target_components: List[str] = field(default_factory=lambda: [
-        "q_proj", "k_proj", "v_proj", "o_proj",
-        "gate_proj", "up_proj", "down_proj"
-    ])
+    target_components: List[str] = field(default_factory=lambda:
+        ATTENTION_COMPONENTS + MLP_COMPONENTS
+    )
     auto_detect_mode: bool = True
     use_cuda_acceleration: bool = True
     save_freezing_history: bool = False
@@ -76,7 +83,7 @@ class ComponentStats:
     component_type: str  # 'lora' or 'full'
     frozen: bool = False
     frozen_at_step: Optional[int] = None
-    change_history: deque = field(default_factory=lambda: deque(maxlen=1000))
+    change_history: deque = field(default_factory=lambda: deque(maxlen=DEFAULT_HISTORY_MAXLEN))
     weight_cache: Optional[Union[Dict[str, torch.Tensor], torch.Tensor]] = None
     total_change_accumulated: float = 0.0
     param_count: int = 0
@@ -120,16 +127,37 @@ class GradEarlyStoppingCallback(TrainerCallback):
             ...
         )
         ```
-    
+
+    Logging Policy:
+        - logger.info: Major events (initialization, freezing, early stopping)
+        - logger.warning: Recoverable issues (OOM, missing wandb)
+        - logger.error: Critical errors that prevent normal operation
+        - logger.debug: Detailed debugging info and non-critical errors
+
     Note:
         This callback works best when used with gradient accumulation and mixed precision training.
         For optimal performance, ensure your TrainingArguments includes appropriate settings for
         these features.
     """
+
+    DEFAULT_HISTORY_MAXLEN = DEFAULT_HISTORY_MAXLEN
+    LORA_DETECTION_LAYERS = LORA_DETECTION_LAYERS
+    ATTENTION_COMPONENTS = ATTENTION_COMPONENTS
+    MLP_COMPONENTS = MLP_COMPONENTS
     
     def __init__(self, config: Optional[GradEarlyStoppingConfig] = None):
         self.config = config or GradEarlyStoppingConfig()
-        
+    
+        # Validate configuration
+        if not 0 < self.config.tau:
+            raise ValueError(f"tau must be greater than 0, got {self.config.tau}")
+        if not 0 <= self.config.alpha < 1:
+            raise ValueError(f"alpha must be between 0 and 1, got {self.config.alpha}")
+        if not 0 < self.config.max_frozen_ratio <= 1:
+            raise ValueError(f"max_frozen_ratio must be between 0 and 1, got {self.config.max_frozen_ratio}")
+        if self.config.compute_interval < 1:
+            raise ValueError(f"compute_interval must be >= 1, got {self.config.compute_interval}")
+    
         # Core tracking structures
         self.component_stats: Dict[str, ComponentStats] = {}
         self.frozen_components: Set[str] = set()
@@ -143,8 +171,8 @@ class GradEarlyStoppingCallback(TrainerCallback):
         self.cuda_available = False
         
         # Global statistics
-        self.total_steps: int = 0
-        self.max_steps: int = 0
+        self.current_training_step: int = 0
+        self.total_training_steps: int = 0
         self.all_components_frozen_at_step: Optional[int] = None
         self.frozen_events: List[Dict] = []
         
@@ -168,7 +196,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
         self.cuda_available = torch.cuda.is_available() and self.config.use_cuda_acceleration
         
         # Initialize total training steps
-        self.max_steps = state.max_steps
+        self.total_training_steps = state.max_steps
         
         # Check wandb availability
         if self.config.enable_wandb_logging:
@@ -219,10 +247,11 @@ class GradEarlyStoppingCallback(TrainerCallback):
             return control
         
         current_step = state.global_step
-        self.total_steps = current_step
+        self.current_training_step = current_step
         
-        # Calculate minimum steps before freezing is allowed
-        min_steps_before_freeze = int(self.max_steps * self.config.alpha)
+        # Calculate alpha-based threshold: components can only be frozen after
+        # completing alpha fraction of total training steps to ensure adequate learning
+        min_steps_before_freeze = int(self.total_training_steps * self.config.alpha)
         
         # Only compute changes at specified intervals
         if current_step > 0 and current_step % self.config.compute_interval == 0:
@@ -299,13 +328,6 @@ class GradEarlyStoppingCallback(TrainerCallback):
             control.should_training_stop = True
         
         return control
-    
-    def on_evaluate(self, args: TrainingArguments, state: TrainerState,
-                   control: TrainerControl, metrics: Dict[str, float], **kwargs):
-        """Log freezing statistics during evaluation."""
-        
-        if not self.initialized:
-            return
 
     def on_train_end(self, args: TrainingArguments, state: TrainerState,
                      control: TrainerControl, model=None, **kwargs):
@@ -326,7 +348,13 @@ class GradEarlyStoppingCallback(TrainerCallback):
         self._cleanup_memory()
 
     def state(self) -> dict:
-        """Export callback state for checkpointing."""
+        """
+        Export callback state for checkpointing and resumption.
+        
+        Returns:
+            dict: Serializable state containing configuration and runtime statistics
+                  including frozen components, training progress, and freezing events.
+        """
         return {
             "config": {
                 "tau": self.config.tau,
@@ -341,7 +369,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
                 "frozen_components": list(self.frozen_components),
                 "all_components_frozen_at_step": self.all_components_frozen_at_step,
                 "frozen_events": self.frozen_events,
-                "total_steps": self.total_steps,
+                "current_training_step": self.current_training_step,
                 "initialized": self.initialized,
             }
         }
@@ -355,7 +383,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
             return 'full'
         
         # Check first few layers for LoRA adapters
-        for layer in layers[:3]:
+        for layer in layers[:self.LORA_DETECTION_LAYERS]:
             if hasattr(layer, 'self_attn'):
                 for component_name in self.config.target_components[:4]:
                     if hasattr(layer.self_attn, component_name):
@@ -392,7 +420,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
                         if self.mode == 'lora':
                             should_track = self._has_lora(component)
                             if should_track:
-                                lora_a, lora_b = self._get_lora_matrices(component)
+                                lora_a, lora_b = self._extract_lora_weight_matrices(component)
                                 if lora_a is not None and lora_b is not None:
                                     param_count = lora_a.numel() + lora_b.numel()
                         else:
@@ -421,7 +449,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
                         if self.mode == 'lora':
                             should_track = self._has_lora(component)
                             if should_track:
-                                lora_a, lora_b = self._get_lora_matrices(component)
+                                lora_a, lora_b = self._extract_lora_weight_matrices(component)
                                 if lora_a is not None and lora_b is not None:
                                     param_count = lora_a.numel() + lora_b.numel()
                         else:
@@ -440,7 +468,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
         
         return initialized_count
     
-    def _get_lora_matrices(self, component) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+    def _extract_lora_weight_matrices(self, component) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
         """Get LoRA A and B matrices from a component."""
         if hasattr(component, 'lora_A') and hasattr(component, 'lora_B'):
             if 'default' in component.lora_A and 'default' in component.lora_B:
@@ -459,7 +487,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
     
     def _calculate_lora_change(self, component, stats: ComponentStats) -> float:
         """Calculate change for LoRA components."""
-        lora_a, lora_b = self._get_lora_matrices(component)
+        lora_a, lora_b = self._extract_lora_weight_matrices(component)
         if lora_a is None or lora_b is None:
             return 0.0
         
@@ -591,10 +619,12 @@ class GradEarlyStoppingCallback(TrainerCallback):
         frozen_ratio = len(self.frozen_components) / len(self.component_stats)
         return frozen_ratio >= self.config.max_frozen_ratio
     
-    def _get_model_layers(self, model):
+    #def _get_model_layers(self, model):
+    def _get_model_layers(self, model: torch.nn.Module) -> Optional[List[torch.nn.Module]]:
         """Get model layers with caching."""
         if self.model_layers_cache is None:
-            # Try common model structures
+            # Attempt to locate model layers through common HuggingFace model hierarchies.
+            # Different models (BERT, GPT, LLaMA) have varying attribute paths to access layers
             for attr_path in [
                 ['base_model', 'model', 'model', 'layers'],
                 ['base_model', 'model', 'layers'],
@@ -613,7 +643,8 @@ class GradEarlyStoppingCallback(TrainerCallback):
         
         return self.model_layers_cache
     
-    def _get_component_by_key(self, model, component_key: str):
+    #def _get_component_by_key(self, model, component_key: str):
+    def _get_component_by_key(self, model: torch.nn.Module, component_key: str) -> Optional[torch.nn.Module]:
         """Get a component by its tracking key."""
         try:
             parts = component_key.split('_')
@@ -634,10 +665,15 @@ class GradEarlyStoppingCallback(TrainerCallback):
     def _save_freezing_history(self):
         """Save detailed freezing history to file."""
         if not self.config.output_dir:
+            logger.warning("No output directory specified, skipping history save")
             return
-        
-        output_dir = Path(self.config.output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            output_dir = Path(self.config.output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+        except (OSError, PermissionError) as e:
+            logger.error(f"Failed to create output directory: {e}")
+            return
         
         # Prepare statistics
         stats_to_save = {
@@ -650,8 +686,8 @@ class GradEarlyStoppingCallback(TrainerCallback):
                 "target_components": self.config.target_components
             },
             "summary": {
-                "total_steps": self.total_steps,
-                "max_steps": self.max_steps,
+                "current_training_step": self.current_training_step,
+                "total_training_steps": self.total_training_steps,
                 "all_components_frozen_at_step": self.all_components_frozen_at_step,
                 "final_frozen_count": len(self.frozen_components),
                 "total_components": len(self.component_stats)
@@ -684,7 +720,7 @@ class GradEarlyStoppingCallback(TrainerCallback):
             metrics = {}
             
             # Group by component type across all layers
-            component_stats = {}
+            component_type_changes = {}
             
             for component_key, stats in self.component_stats.items():
                 if not stats.change_history:
@@ -698,12 +734,12 @@ class GradEarlyStoppingCallback(TrainerCallback):
                 if stats.change_history:
                     latest_change = stats.change_history[-1][1]  # (step, change)
                     
-                    if component_type not in component_stats:
-                        component_stats[component_type] = []
-                    component_stats[component_type].append(latest_change)
+                    if component_type not in component_type_changes:
+                        component_type_changes[component_type] = []
+                    component_type_changes[component_type].append(latest_change)
             
             # Log average change per component type (each gets its own line)
-            for component_type, changes in component_stats.items():
+            for component_type, changes in component_type_changes.items():
                 avg_change = sum(changes) / len(changes)
                 metrics[f"GradES/components/{component_type}"] = avg_change
             
