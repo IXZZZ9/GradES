@@ -1,0 +1,32 @@
+# Include the license file
+include LICENSE
+
+# Include the README file
+include README.md
+
+# Include requirements
+include requirements.txt
+
+# Include configuration files
+include pyproject.toml
+
+# Include examples and notebooks
+recursive-include examples *.ipynb
+recursive-include examples *.py
+recursive-include examples *.md
+
+# Include package data
+recursive-include grades *.py
+
+# Exclude development files
+exclude .gitignore
+exclude .git
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * *.so
+recursive-exclude * .DS_Store
+
+# Exclude build artifacts
+exclude build
+exclude dist
+exclude *.egg-info

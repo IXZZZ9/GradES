@@ -1,0 +1,112 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grades"
+version = "1.0.0"
+description = "Gradient-based Early Stopping for Efficient Fine-tuning of Large Language Models"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Qifu Wen", email = "qfwen@bu.edu"},
+    {name = "Xi Zeng", email = "zengxi0115@gmail.com"},
+    {name = "Zihan Zhou"},
+    {name = "Shuaijun Liu"},
+    {name = "Mehdi Hosseinzadeh"},
+    {name = "Reza Rawassizadeh"},
+]
+maintainers = [
+    {name = "Xi Zeng", email = "zengxi0115@gmail.com"},
+    {name = "Qifu Wen", email = "qfwen@bu.edu"},
+]
+keywords = [
+    "machine learning",
+    "deep learning",
+    "transformers",
+    "early stopping",
+    "gradient-based",
+    "fine-tuning",
+    "llm",
+    "pytorch",
+    "huggingface",
+    "efficiency",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "torch>=1.9.0",
+    "transformers>=4.20.0",
+    "numpy>=1.21.0",
+]
+
+[project.optional-dependencies]
+wandb = ["wandb>=0.12.0"]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+    "black>=22.0",
+    "isort>=5.0",
+    "flake8>=4.0",
+    "mypy>=0.910",
+]
+examples = [
+    "jupyter>=1.0.0",
+    "notebook>=6.0.0",
+    "ipywidgets>=7.0.0",
+    "trl>=0.7.0",
+    "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git",
+]
+
+[project.urls]
+Homepage = "https://github.com/IXZZZ9/GradES"
+Documentation = "https://github.com/IXZZZ9/GradES#readme"
+Repository = "https://github.com/IXZZZ9/GradES.git"
+"Bug Tracker" = "https://github.com/IXZZZ9/GradES/issues"
+Paper = "https://arxiv.org/abs/2509.01842"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["grades*"]
+
+[tool.setuptools.package-data]
+grades = ["*.md", "*.txt"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
