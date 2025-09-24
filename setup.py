@@ -14,9 +14,7 @@ with open(os.path.join(this_directory, 'requirements.txt'), encoding='utf-8') as
 
 setup(
     name="grades",
-    version="1.0.0",
-    author="Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Mehdi Hosseinzadeh, Reza Rawassizadeh",
-    author_email="qfwen@bu.edu, zengxi0115@gmail.com",
+    version="1.0.2",
     description="Gradient-based Early Stopping for Efficient Fine-tuning of Large Language Models",
     long_description=long_description,
     long_description_content_type="text/markdown",

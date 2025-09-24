@@ -4,21 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "grades"
-version = "1.0.0"
+version = "1.0.2"
 description = "Gradient-based Early Stopping for Efficient Fine-tuning of Large Language Models"
 readme = "README.md"
 license = {text = "MIT"}
-authors = [
-    {name = "Qifu Wen", email = "qfwen@bu.edu"},
-    {name = "Xi Zeng", email = "zengxi0115@gmail.com"},
-    {name = "Zihan Zhou"},
-    {name = "Shuaijun Liu"},
-    {name = "Mehdi Hosseinzadeh"},
-    {name = "Reza Rawassizadeh"},
-]
 maintainers = [
     {name = "Xi Zeng", email = "zengxi0115@gmail.com"},
-    {name = "Qifu Wen", email = "qfwen@bu.edu"},
 ]
 keywords = [
     "machine learning",
@@ -69,7 +60,7 @@ examples = [
     "notebook>=6.0.0",
     "ipywidgets>=7.0.0",
     "trl>=0.7.0",
-    "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git",
+    "unsloth",
 ]
 
 [project.urls]
