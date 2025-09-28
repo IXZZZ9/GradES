@@ -229,7 +229,7 @@ If you find GradES useful in your research, please cite:
 ```bibtex
 @misc{wen2025gradessignificantlyfastertraining,
       title={GradES: Significantly Faster Training in Transformers with Gradient-Based Early Stopping}, 
-      author={Qifu Wen and Xi Zeng and Zihan Zhou and Shuaijun Liu and Mehdi Hosseinzadeh and Reza Rawassizadeh},
+      author={Qifu Wen and Xi Zeng and Zihan Zhou and Shuaijun Liu and Ningxin Su and Mehdi Hosseinzadeh and Reza Rawassizadeh},
       year={2025},
       eprint={2509.01842},
       archivePrefix={arXiv},
