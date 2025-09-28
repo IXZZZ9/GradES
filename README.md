@@ -245,8 +245,11 @@ If you find GradES useful in your research, please cite:
 ```
 In this research, we utilize nanoVLM, Hugging Face, Unsloth, and PyTorch as core platforms for modeling, dataset handling, and deep learning infrastructure.
 Wiedmann, L., Roy Gosthipaty, A., & Marafioti, A. (2025). nanoVLM. GitHub repository. https://github.com/huggingface/nanoVLM
+
 Wolf, T., Debut, L., Sanh, V., Chaumond, J., Delangue, C., Moi, A., Cistac, P., Rault, T., Louf, R., Funtowicz, M., Davison, J., Shleifer, S., von Platen, P., Ma, C., Jernite, Y., Plu, J., Xu, C., Le Scao, T., Gugger, S., Drame, M., Lhoest, Q., & Rush, A. M. (2020). Transformers: State-of-the-Art Natural Language Processing. Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations, 38–45. Association for Computational Linguistics. https://www.aclweb.org/anthology/2020.emnlp-demos.6
+
 Han, D., Han, M., & Unsloth Team. (2023). Unsloth. GitHub repository. https://github.com/unslothai/unsloth
+
 Paszke, A., Gross, S., Massa, F., Lerer, A., Bradbury, J., Chanan, G., Killeen, T., Lin, Z., Gimelshein, N., Antiga, L., Desmaison, A., Kopf, A., Yang, E., DeVito, Z., Raison, M., Tejani, A., Chilamkurthy, S., Steiner, B., Fang, L., Bai, J., & Chintala, S. (2019). PyTorch: An Imperative Style, High-Performance Deep Learning Library. Advances in Neural Information Processing Systems, 32, 8024–8035.
 
 ## 📝 License
