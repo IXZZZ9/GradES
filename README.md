@@ -222,6 +222,11 @@ grades/
 
 We welcome contributions! Please feel free to submit a Pull Request.
 
+## Wandb Example
+![Wandb](images/wandb_capture.png)
+
+## Performance
+
 ## 📖 Citation
 
 If you find GradES useful in your research, please cite:
