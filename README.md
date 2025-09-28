@@ -9,7 +9,7 @@ Official implementation of **GradES** - a gradient-based selective training meth
 
 ## 📄 Paper
 **GradES: Significantly Faster Training in Transformers with Gradient-Based Early Stopping**
-*Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Mehdi Hosseinzadeh, Reza Rawassizadeh*
+*Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Ningxin Su, Mehdi Hosseinzadeh, Reza Rawassizadeh*
 📖 [arXiv:2509.01842](https://arxiv.org/abs/2509.01842)
 
 ## 🚀 Quick Installation
