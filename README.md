@@ -9,7 +9,7 @@ Official implementation of **GradES** - a gradient-based selective training meth
 
 ## 📄 Paper
 **GradES: Significantly Faster Training in Transformers with Gradient-Based Early Stopping**
-*Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Mehdi Hosseinzadeh, Reza Rawassizadeh*
+*Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Ningxin Su, Mehdi Hosseinzadeh, Reza Rawassizadeh*
 📖 [arXiv:2509.01842](https://arxiv.org/abs/2509.01842)
 
 ## 🚀 Quick Installation
@@ -43,8 +43,8 @@ from transformers import Trainer, TrainingArguments
 
 # Configure GradES
 config = GradEarlyStoppingConfig(
-    tau=1e-4,           # Convergence threshold
-    alpha=0.3,          # Minimum training progress before freezing
+    tau=0.023,           # Convergence threshold
+    alpha=0.55,          # Minimum training progress before freezing
     enable_wandb_logging=True
 )
 
@@ -73,8 +73,8 @@ from trl import SFTTrainer, SFTConfig
 
 # GradES configuration for LoRA
 config = GradEarlyStoppingConfig(
-    tau=1e-10,
-    alpha=0.1,
+    tau=0.021637,
+    alpha=0.55,
     enable_wandb_logging=True,
 )
 callback = GradEarlyStoppingCallback(config)
@@ -87,7 +87,7 @@ trainer = SFTTrainer(
     callbacks=[callback],
     args=SFTConfig(
         dataset_text_field="text",
-        per_device_train_batch_size=16,
+        per_device_train_batch_size=1,
         gradient_accumulation_steps=4,
         warmup_ratio=0.05,
         max_steps=60,
@@ -99,7 +99,6 @@ trainer = SFTTrainer(
         seed=3407,
         report_to="wandb",
         gradient_checkpointing=True,
-        bf16=True,
         dataloader_pin_memory=True,
         dataloader_num_workers=0,
         remove_unused_columns=False,
@@ -113,8 +112,8 @@ from grades import GradEarlyStoppingCallback, GradEarlyStoppingConfig
 
 # GradES configuration for FFT
 config = GradEarlyStoppingConfig(
-    tau=1e-10,
-    alpha=0.90,  # Higher alpha for FFT
+    tau=2.404167,
+    alpha=0.55,  # Higher alpha for FFT
     enable_wandb_logging=True,
 )
 callback = GradEarlyStoppingCallback(config)
@@ -130,7 +129,7 @@ trainer = SFTTrainer(
     args=SFTConfig(
         dataset_text_field="text",
         per_device_train_batch_size=1,
-        gradient_accumulation_steps=1,
+        gradient_accumulation_steps=4,
         warmup_ratio=0.05,
         num_train_epochs=1,
         learning_rate=2e-5,
@@ -141,7 +140,6 @@ trainer = SFTTrainer(
         seed=3407,
         report_to="wandb",
         gradient_checkpointing=True,
-        bf16=True,
         dataloader_pin_memory=True,
         dataloader_num_workers=0,
         remove_unused_columns=False,
@@ -155,7 +153,8 @@ from grades import VLMGradEarlyStoppingCallback, VLMGradEarlyStoppingConfig
 
 # Configure for VLMs
 vlm_config = VLMGradEarlyStoppingConfig(
-    tau=1e-4,
+    vision_tau=1e-4,
+    language_tau=1e-3,
     alpha=0.3,
     enable_wandb_logging=True
 )
@@ -228,11 +227,11 @@ We welcome contributions! Please feel free to submit a Pull Request.
 If you find GradES useful in your research, please cite:
 
 ```bibtex
-@article{wen2024grades,
+@article{wen2025grades,
   title={GradES: Significantly Faster Training in Transformers with Gradient-Based Early Stopping},
-  author={Wen, Qifu and Zeng, Xi and Zhou, Zihan and Liu, Shuaijun and Hosseinzadeh, Mehdi and Rawassizadeh, Reza},
+  author={Wen, Qifu and Zeng, Xi and Zhou, Zihan and Liu, Shuaijun and Su, Ningxin and Hosseinzadeh, Mehdi and Rawassizadeh, Reza},
   journal={arXiv preprint arXiv:2509.01842},
-  year={2024}
+  year={2025}
 }
 ```
 
