@@ -6,7 +6,7 @@ during backpropagation and freezes individual transformer components (attention/
 their gradients fall below convergence threshold τ, eliminating costly validation passes while 
 allowing slow-converging parameters to continue learning.
 
-Authors: Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Mehdi Hosseinzadeh, Reza Rawassizadeh
+Authors: Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Ningxin Su, Mehdi Hosseinzadeh, Reza Rawassizadeh
 Paper: GradES: Significantly Faster Training in Transformers with Gradient-Based Early Stopping
 Link: https://arxiv.org/abs/2509.01842
 License: MIT License
