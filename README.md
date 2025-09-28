@@ -222,8 +222,9 @@ grades/
 
 We welcome contributions! Please feel free to submit a Pull Request.
 
-## Wandb Example
+## Wandb Example for Training nanoVLM
 ![Wandb](images/wandb_capture.png)
+This is the training example on [nanoVLM](https://github.com/huggingface/nanoVLM), and reproducible code for training with GradES will be available soon.
 
 ## Performance
 
