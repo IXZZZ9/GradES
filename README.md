@@ -229,8 +229,6 @@ This is the training example on [nanoVLM](https://github.com/huggingface/nanoVLM
 ## Performance
 Below are accuracy for language benchmarks. 
 
-### Accuracy Comparison of Fine-Tuning Methods on Different LLMs
-
 | Model           | Method          | BoolQ  | PIQA  | SIQA  | HellaSwag | Winograde | OpenBookQA | ARC-C | ARC-E | Avg.  |
 |-----------------|-----------------|--------|-------|-------|-----------|-----------|------------|-------|-------|-------|
 | Qwen3 14B       | Full Parameter  | 91.07  | 91.29 | 81.93 | 95.11     | 83.03     | 91.60      | 94.31 | 98.07 | 90.80 |
@@ -263,6 +261,29 @@ Below are accuracy for language benchmarks.
 |                 | LoRA            | **89.33** | 87.43 | 79.79 | **94.95** | 79.72     | 84.20      | 76.25 | 88.42 | 85.01 |
 |                 | LoRA+ES         | 88.93  | **88.30** | **81.01** | 94.69     | **82.24** | **85.00** | 79.60 | **90.35** | **86.27** |
 |                 | LoRA+GradES     | 89.36  | 88.03 | 80.71 | 94.69     | 80.90     | 84.40      | **81.61** | 89.65 | 86.17 |
+
+
+Results show accuracy (%) for Qwen2.5-VL-7B across visual reasoning (GQA), question answering (VQAv2), and image captioning (COCO Cap) tasks.
+
+| Model | Method | GQA | VQAv2 | COCO Cap | Avg. |
+|-------|--------|-----|-------|----------|------|
+| Qwen2.5-VL-7B | Full Parameter | 75.69 | 81.0 | 41.38 | 66.08 |
+| | FP+GradES | 76.08 | 80.81 | 41.61 | 66.20 |
+| | LoRA | 76.49 | 81.01 | 53.22 | 70.24 |
+| | LoRA+GradES | 76.13 | 81.24 | 54.44 | 70.6 |
+
+
+Results show accuracy (%) for full-parameter fine-tuning with and without GradES across perception, reasoning, and knowledge-based tasks.
+
+| Benchmark | Training | Training+GradES |
+|-----------|----------|-----------------|
+| Coarse Perception | 38.87 | 42.42 |
+| Fine-grained Perception | 22.40 | 29.82 |
+| Instance Reasoning | 36.07 | 36.42 |
+| Logical Reasoning | 28.86 | 37.21 |
+| Math | 27.60 | 28.60 |
+| Science & Technology | 31.10 | 33.74 |
+| **Avg.** | **30.82** | **34.70** |
 
 ---
 
