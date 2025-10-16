@@ -1,105 +1,29 @@
-# 📚 GradES Examples
+# GradES Example Notebooks
 
-This directory contains example notebooks and scripts demonstrating how to use GradES with different frameworks and training setups.
+This directory contains example Jupyter notebooks demonstrating how to use GradES for fine-tuning language and vision-language models.
 
-## 🦙 Unsloth Integration
+## Vision-Language Model (VLM) Examples
 
-### LoRA Fine-tuning
-- **File**: `unsloth_lora_grades.ipynb`
-- **Description**: Demonstrates GradES with Unsloth for LoRA fine-tuning
-- **Features**: 40-50% speedup with LoRA training
-- **Colab**: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IXZZZ9/GradES/blob/main/examples/unsloth_lora_grades.ipynb)
+These examples are based on the dataset and preprocessing from the [Unsloth Qwen2.5 VL notebook](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/Qwen2_5_VL_(7B)-Vision.ipynb).
 
-### Full Fine-tuning (FFT)
-- **File**: `unsloth_fft_grades.ipynb`
-- **Description**: Demonstrates GradES with Unsloth for full parameter fine-tuning
-- **Features**: Maximum performance with efficiency gains
-- **Colab**: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IXZZZ9/GradES/blob/main/examples/unsloth_fft_grades.ipynb)
+### 1. `huggingface_vlm_lora_grades.ipynb`
+- **Framework**: Hugging Face `transformers`
+- **Fine-tuning Method**: LoRA
+- **Description**: Demonstrates how to fine-tune a VLM with LoRA using the standard Hugging Face `Trainer` and integrate GradES for early stopping.
 
-## 🚀 Quick Start
+### 2. `unsloth_vlm_fft_grades.ipynb`
+- **Framework**: Unsloth
+- **Fine-tuning Method**: Full Fine-Tuning (FFT)
+- **Description**: Shows how to perform Full Fine-Tuning on a VLM with Unsloth's `FastVisionModel` and `SFTTrainer`, accelerated with GradES.
 
-### Option 1: Use with Unsloth Notebook (Recommended)
-1. Open the [Unsloth Llama3.1 notebook](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/Llama3.1_(8B)-Alpaca.ipynb)
-2. Add this cell after imports:
-   ```python
-   !pip install grades
-   ```
-3. Replace the trainer setup with:
-   ```python
-   from grades import GradEarlyStoppingCallback, GradEarlyStoppingConfig
+## Language Model (LLM) Examples
 
-   # For LoRA
-   config = GradEarlyStoppingConfig(tau=1e-10, alpha=0.1, enable_wandb_logging=True)
+### 3. `unsloth_lora_grades.ipynb`
+- **Framework**: Unsloth
+- **Fine-tuning Method**: LoRA
+- **Description**: A standard example of fine-tuning a language model with LoRA and Unsloth, with GradES added to optimize the training process.
 
-   # For FFT
-   config = GradEarlyStoppingConfig(tau=1e-10, alpha=0.90, enable_wandb_logging=True)
-
-   callback = GradEarlyStoppingCallback(config)
-
-   # Add callbacks=[callback] to your SFTTrainer
-   ```
-
-### Option 2: Use Our Example Notebooks
-1. Click the Colab badges above to open our example notebooks
-2. Run all cells to see GradES in action
-3. Modify hyperparameters as needed
-
-## ⚙️ Configuration Guidelines
-
-### LoRA Training
-```python
-config = GradEarlyStoppingConfig(
-    tau=1e-10,      # Very low threshold for LoRA
-    alpha=0.1,      # Allow early freezing (10% progress)
-    enable_wandb_logging=True
-)
-```
-
-### Full Fine-tuning
-```python
-config = GradEarlyStoppingConfig(
-    tau=1e-10,      # Very low threshold for FFT
-    alpha=0.90,     # Late freezing (90% progress)
-    enable_wandb_logging=True
-)
-```
-
-### Vision-Language Models
-```python
-from grades import VLMGradEarlyStoppingCallback, VLMGradEarlyStoppingConfig
-
-config = VLMGradEarlyStoppingConfig(
-    tau=1e-4,       # Standard threshold for VLMs
-    alpha=0.3,      # Moderate freezing point
-    enable_wandb_logging=True
-)
-```
-
-## 🖼️ Coming Soon
-
-- **Hugging Face VLM + LoRA**: Vision-language model fine-tuning with LoRA
-- **Hugging Face VLM + FFT**: Full fine-tuning for vision-language models
-- **Multi-GPU Training**: Distributed training examples
-- **Custom Datasets**: Examples with different dataset formats
-
-## 📊 Expected Results
-
-- **Computational Savings**: 40-50% reduction in training time
-- **Memory Efficiency**: Reduced GPU memory usage through component freezing
-- **Performance**: Maintained or improved model quality
-- **Monitoring**: Real-time tracking via WandB integration
-
-## 🤝 Contributing
-
-Found an issue or want to add an example? Please submit a PR or open an issue!
-
-## 📖 Paper Reference
-
-```bibtex
-@article{wen2024grades,
-  title={GradES: Significantly Faster Training in Transformers with Gradient-Based Early Stopping},
-  author={Wen, Qifu and Zeng, Xi and Zhou, Zihan and Liu, Shuaijun and Hosseinzadeh, Mehdi and Rawassizadeh, Reza},
-  journal={arXiv preprint arXiv:2509.01842},
-  year={2024}
-}
-```
+### 4. `unsloth_fft_grades.ipynb`
+- **Framework**: Unsloth
+- **Fine-tuning Method**: Full Fine-Tuning (FFT)
+- **Description**: An example of performing Full Fine-Tuning on a language model with Unsloth, integrated with GradES for computational savings.
