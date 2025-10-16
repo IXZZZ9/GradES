@@ -180,9 +180,209 @@ Ready-to-use notebooks with minimal setup:
 3. Replace the trainer setup with the GradES examples above
 4. Run and enjoy 40-50% faster training! 🚀
 
-#### 🖼️ VLM Fine-tuning (Coming Soon)
-- Hugging Face VLM + LoRA notebook
-- Hugging Face VLM + FFT notebook
+#### 🖼️ VLM Fine-tuning with Hugging Face
+
+This guide shows how to adapt a standard VLM fine-tuning script, like the [Unsloth Qwen2.5 VL notebook](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/Qwen2.5_VL_(7B)-Vision.ipynb), to use GradES with the Hugging Face `Trainer`.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/Qwen2.5_VL_(7B)-Vision.ipynb)
+
+**1. Installation**
+
+First, install GradES and the necessary libraries:
+
+```python
+!pip install grades
+!pip install transformers datasets peft accelerate bitsandbytes
+```
+
+**2. Load Model and Processor**
+
+Instead of Unsloth's `FastVisionModel`, use the standard Hugging Face `AutoModelForImageTextToText` and `AutoProcessor`.
+
+```python
+from transformers import AutoModelForImageTextToText, AutoProcessor
+import torch
+
+model = AutoModelForImageTextToText.from_pretrained(
+    "Qwen/Qwen2.5-VL-7B-Instruct",
+    torch_dtype=torch.bfloat16,
+    trust_remote_code=True,
+)
+
+processor = AutoProcessor.from_pretrained(
+    "Qwen/Qwen2.5-VL-7B-Instruct",
+    trust_remote_code=True,
+)
+```
+
+**3. Configure Fine-tuning Method (LoRA or FFT)**
+
+#### For LoRA Fine-tuning:
+
+Apply LoRA configuration using `peft`.
+
+```python
+from peft import LoraConfig, get_peft_model, TaskType
+
+peft_config = LoraConfig(
+    r=128,
+    lora_alpha=256,
+    target_modules=[
+        "q_proj", "k_proj", "v_proj", "o_proj",
+        "gate_proj", "up_proj", "down_proj",
+        "qkv", "proj",
+    ],
+    lora_dropout=0.0,
+    bias="none",
+    task_type=TaskType.CAUSAL_LM,
+)
+
+model = get_peft_model(model, peft_config)
+```
+
+#### For Full Fine-tuning (FFT):
+
+No special configuration is needed. Just use the model as loaded in step 2.
+
+**4. Prepare the Dataset**
+
+You can reuse the data preparation logic from the Unsloth notebook to format your dataset. The key is to have a dataset of conversations in the format expected by the model.
+
+**5. Integrate GradES**
+
+Now, configure and add the `VLMGradEarlyStoppingCallback`.
+
+```python
+from grades import VLMGradEarlyStoppingCallback, VLMGradEarlyStoppingConfig
+from transformers import TrainingArguments, Trainer
+
+# Configure GradES for VLM
+vlm_config = VLMGradEarlyStoppingConfig(
+    vision_tau=33.0, # Threshold for vision components with LoRA 16-bit
+    language_tau=3.3, # Threshold for LLM components with LoRA 16-bit
+    alpha=0.3,
+    enable_wandb_logging=True # If you use wandb
+)
+
+vlm_callback = VLMGradEarlyStoppingCallback(vlm_config)
+
+# Define Training Arguments
+training_args = TrainingArguments(
+    output_dir="./vlm_finetune_with_grades",
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=1,
+    num_train_epochs=1,
+    learning_rate=1e-4,
+    logging_steps=1,
+    report_to="wandb",
+    # Add other necessary arguments
+)
+
+# Create the Trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=your_prepared_dataset,
+    data_collator=your_data_collator, # A data collator for VLM is needed
+    callbacks=[vlm_callback],
+)
+```
+
+**6. Start Training**
+
+Finally, start the training process.
+
+```python
+trainer.train()
+```
+
+By following these steps, you can seamlessly integrate GradES into your Hugging Face VLM fine-tuning workflow for both LoRA and FFT, achieving significant computational savings.
+
+#### 🖼️ VLM Fine-tuning with Unsloth (FFT)
+
+This guide demonstrates how to use GradES for Full Fine-Tuning (FFT) of a Vision-Language Model with Unsloth.
+
+**1. Installation**
+
+Install GradES and Unsloth.
+
+```python
+!pip install grades
+!pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
+```
+
+**2. Load Model for Full Fine-tuning**
+
+Load the model using `FastVisionModel` and set `full_finetuning=True`.
+
+```python
+from unsloth import FastVisionModel
+import torch
+
+model, tokenizer = FastVisionModel.from_pretrained(
+    "unsloth/Qwen2.5-VL-7B-Instruct-unsloth-bnb-4bit",
+    load_in_4bit=True,
+    device_map="auto",
+    full_finetuning=True,
+    trust_remote_code=True,
+)
+```
+
+**3. Prepare Dataset**
+
+Prepare your dataset as a list of conversations. The structure should be the same as in the Hugging Face or Unsloth examples.
+
+**4. Integrate GradES**
+
+Configure `VLMGradEarlyStoppingCallback` with the appropriate thresholds for FFT and add it to the `SFTTrainer`.
+
+```python
+from grades import VLMGradEarlyStoppingCallback, VLMGradEarlyStoppingConfig
+from unsloth.trainer import UnslothVisionDataCollator
+from trl import SFTTrainer, SFTConfig
+
+# Configure GradES for VLM FFT
+vlm_config = VLMGradEarlyStoppingConfig(
+    vision_tau=0.13,      # Threshold for vision components
+    language_tau=0.09,   # Threshold for language components
+    alpha=0.3,           # Start freezing after 10% of training
+    enable_wandb_logging=True
+)
+
+vlm_callback = VLMGradEarlyStoppingCallback(vlm_config)
+
+# Set up the Trainer
+trainer = SFTTrainer(
+    model=model,
+    tokenizer=tokenizer,
+    train_dataset=your_prepared_dataset,
+    data_collator=UnslothVisionDataCollator(model, tokenizer),
+    callbacks=[vlm_callback],
+    args=SFTConfig(
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=1,
+        num_train_epochs=1,
+        warmup_ratio=0.1,
+        learning_rate=2e-5,
+        logging_steps=1,
+        output_dir="outputs_vlm",
+        optim="adamw_torch",
+        seed=42,
+        report_to="wandb",
+        # Unsloth specific arguments
+        remove_unused_columns=False,
+        dataset_text_field="",
+        dataset_kwargs={"skip_prepare_dataset": True},
+    ),
+)
+```
+
+**5. Start Training**
+
+Launch the training process.
+
+```python
+trainer.train()
+```
 
 ## 📊 Key Results
 
