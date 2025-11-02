@@ -5,7 +5,7 @@ A PyTorch library implementing gradient-based early stopping that monitors gradi
 magnitudes during backpropagation and freezes individual transformer components when
 their gradients fall below convergence thresholds.
 
-Authors: Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Ningxin Su, Mehdi Hosseinzadeh, Reza Rawassizadeh
+Authors: Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Mehdi Hosseinzadeh, Ningxin Su, Reza Rawassizadeh
 Paper: GradES: Significantly Faster Training in Transformers with Gradient-Based Early Stopping
 Link: https://arxiv.org/abs/2509.01842
 License: MIT License
