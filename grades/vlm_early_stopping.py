@@ -6,7 +6,7 @@ Vision-Language Models that monitors gradient magnitudes during backpropagation 
 individual components (vision encoder and language model matrices) when their gradients fall 
 below convergence thresholds, supporting both LoRA and full parameter fine-tuning modes.
 
-Authors: Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Ningxin Su, Mehdi Hosseinzadeh, Reza Rawassizadeh
+Authors: Qifu Wen, Xi Zeng, Zihan Zhou, Shuaijun Liu, Mehdi Hosseinzadeh, Ningxin Su, Reza Rawassizadeh
 Paper: GradES: Significantly Faster Training in Transformers with Gradient-Based Early Stopping
 Link: https://arxiv.org/abs/2509.01842
 License: MIT License
